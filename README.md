@@ -1,34 +1,7 @@
-# Payment Chatbot (Telegram / WhatsApp + Midtrans)
+# Payment Chatbot Telegram + Midtrans
 
-Chatbot Telegram sederhana yang bisa membuatkan link pembayaran Midtrans dan
-otomatis memberi tahu pembeli & admin saat pembayaran berhasil.
-
-## Versi WhatsApp
-
-Versi WhatsApp memakai **WhatsApp Cloud API resmi dari Meta**. Pengguna cukup
-membalas angka untuk memilih menu, ukuran, rasa, dan metode pembayaran.
-
-Tambahkan variabel berikut ke `.env`:
-
-```env
-WHATSAPP_ACCESS_TOKEN=token_permanent_dari_meta
-WHATSAPP_PHONE_NUMBER_ID=id_nomor_whatsapp_meta
-WHATSAPP_VERIFY_TOKEN=token_bebas_untuk_verifikasi_webhook
-WHATSAPP_ADMIN_PHONE_NUMBER=628xxxxxxxxxx
-```
-
-Daftarkan webhook `https://domain-kamu/whatsapp/webhook` di Meta Developers
-dengan metode `GET` untuk verifikasi dan `POST` untuk pesan masuk. URL publik
-dapat dibuat saat testing lokal dengan `ngrok http 3000`.
-
-Jalankan server WhatsApp dengan:
-
-```bash
-npm run start:whatsapp
-```
-
-Atur Payment Notification URL Midtrans ke:
-`https://domain-kamu/midtrans/notification`.
+Chatbot Telegram ini membuat link pembayaran Midtrans dan otomatis memberi
+tahu pembeli serta admin saat pembayaran berhasil.
 
 ## Backend admin dan owner
 
@@ -39,15 +12,12 @@ terdaftar, lengkap dengan produk, total, dan alamat.
 Isi role awal di `.env`:
 
 ```env
-OWNER_IDS=tg:123456789,wa:628xxxxxxxxxx
-ADMIN_IDS=tg:987654321,wa:628xxxxxxxxxx
+OWNER_IDS=123456789
+ADMIN_IDS=987654321
 ```
 
-Di Telegram, owner dapat memakai `/addadmin tg:<id>`, `/addowner tg:<id>`,
-`/deladmin tg:<id>`, `/delowner tg:<id>`, `/users`, dan `/roles`.
-Di WhatsApp, owner mengirim `addadmin wa:<nomor>`, `addowner wa:<nomor>`,
-`deladmin wa:<nomor>`, `delowner wa:<nomor>`, `users`, atau `roles`.
-Nomor WhatsApp memakai format internasional tanpa tanda `+`.
+Di Telegram, owner dapat memakai `/addadmin <id>`, `/addowner <id>`,
+`/deladmin <id>`, `/delowner <id>`, `/users`, dan `/roles`.
 
 ## 1. Install dependencies
 

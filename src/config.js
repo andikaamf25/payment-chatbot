@@ -24,10 +24,4 @@ module.exports = {
   adminChatId: process.env.ADMIN_CHAT_ID || null,
   ownerIds: parseIds(process.env.OWNER_IDS),
   adminIds: parseIds(process.env.ADMIN_IDS),
-  whatsapp: {
-    accessToken: process.env.WHATSAPP_ACCESS_TOKEN || null,
-    phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || null,
-    verifyToken: process.env.WHATSAPP_VERIFY_TOKEN || null,
-    adminPhoneNumber: process.env.WHATSAPP_ADMIN_PHONE_NUMBER || null,
-  },
 };

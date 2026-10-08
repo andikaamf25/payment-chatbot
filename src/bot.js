@@ -33,9 +33,9 @@ const MENU = {
   offline: {
     label: 'Offline',
     sizes: [
-      { id: 'small', label: 'Small', amount: 2000 },
-      { id: 'medium', label: 'Medium', amount: 5000 },
-      { id: 'large', label: 'Large', amount: 12000 },
+      { id: 'small', label: 'Small', amount: 5000 },
+      { id: 'medium', label: 'Medium', amount: 10000 },
+      { id: 'large', label: 'Large', amount: 15000 },
     ],
   },
   online: {
@@ -105,8 +105,8 @@ function cartText(items) {
 
 async function notifyTelegramStaff(order) {
   const targets = [...new Set([
-    ...getRoleRecipients('owner', 'telegram'),
-    ...getRoleRecipients('admin', 'telegram'),
+    ...getRoleRecipients('owner'),
+    ...getRoleRecipients('admin'),
   ])];
   const message =
     ` <b>Pesanan baru masuk</b>\n` +
@@ -286,7 +286,7 @@ function manageRoleCommand(ctx, role, action) {
   if (!hasRole(ctx.from.id, 'owner')) return ctx.reply('⛔ Hanya owner yang boleh mengatur role.');
   const target = ctx.message.text.trim().split(/\s+/)[1];
   if (!target) return ctx.reply(`Format: /${action === addRole ? 'add' : 'del'}${role} tg:<telegram_id>`);
-  action(target.startsWith('tg:') || target.startsWith('wa:') ? target : `tg:${target}`, role);
+  action(target.startsWith('tg:') ? target : `tg:${target}`, role);
   return ctx.reply(` Role ${role} berhasil diperbarui untuk ${target}.`);
 }
 

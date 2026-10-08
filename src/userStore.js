@@ -45,7 +45,7 @@ function registerUser({ id, channel, name }) {
 function getRole(id) {
   const userId = normalizeId(id);
   const data = readData();
-  const candidates = [userId, `tg:${userId}`, `wa:${userId}`];
+  const candidates = [userId, `tg:${userId}`];
   if (data.roles.owner.some((target) => candidates.includes(target))) return 'owner';
   if (data.roles.admin.some((target) => candidates.includes(target))) return 'admin';
   return 'user';
@@ -87,12 +87,10 @@ function getRoles() {
   return readData().roles;
 }
 
-function getRoleRecipients(role, channel) {
-  return getRoles()[role].filter((target) => {
-    if (channel === 'telegram') return !target.startsWith('wa:');
-    if (channel === 'whatsapp') return !target.startsWith('tg:');
-    return true;
-  }).map((target) => target.replace(/^(tg|wa):/, ''));
+function getRoleRecipients(role) {
+  return getRoles()[role]
+    .filter((target) => !target.startsWith('wa:'))
+    .map((target) => target.replace(/^tg:/, ''));
 }
 
 function bootstrapRoles({ ownerIds = [], adminIds = [] }) {
