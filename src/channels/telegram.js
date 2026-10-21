@@ -256,7 +256,7 @@ bot.command('delowner', (ctx) => manageRoleCommand(ctx, 'owner', removeRole));
 bot.command('users', (ctx) => {
   if (!hasRole(ctx.from.id, 'owner')) return ctx.reply(' Perintah ini hanya untuk owner.');
   const stats = getStats();
-  return ctx.reply(` Total user unik: ${stats.totalUsers}\n👑 Owner: ${stats.totalOwners}\n Admin: ${stats.totalAdmins}`);
+  return ctx.reply(` Total user unik: ${stats.totalUsers}\n Owner: ${stats.totalOwners}\n Admin: ${stats.totalAdmins}`);
 });
 bot.command('roles', (ctx) => {
   if (!hasRole(ctx.from.id, 'owner')) return ctx.reply(' Perintah ini hanya untuk owner.');
@@ -265,7 +265,7 @@ bot.command('roles', (ctx) => {
 });
 
 function manageRoleCommand(ctx, role, action) {
-  if (!hasRole(ctx.from.id, 'owner')) return ctx.reply('⛔ Hanya owner yang boleh mengatur role.');
+  if (!hasRole(ctx.from.id, 'owner')) return ctx.reply(' Hanya owner yang boleh mengatur role.');
   const target = ctx.message.text.trim().split(/\s+/)[1];
   if (!target) return ctx.reply(`Format: /${action === addRole ? 'add' : 'del'}${role} tg:<telegram_id>`);
   action(/^tg:/.test(target) ? target : `tg:${target}`, role);
@@ -288,7 +288,7 @@ bot.command('pesan', async (ctx) => {
       productName: namaProduk,
       amount: harga,
     });
-    await ctx.replyWithHTML('📍 <b>Masukkan alamat pesanan</b>\n\nKetik alamat lengkap untuk pengantaran, termasuk patokan bila ada.');
+    await ctx.replyWithHTML(' <b>Masukkan alamat pesanan</b>\n\nKetik alamat lengkap untuk pengantaran, termasuk patokan bila ada.');
   } catch (err) {
     console.error('Error di /pesan:', err);
     ctx.reply(' Maaf, terjadi kesalahan saat membuat pesanan. Coba lagi nanti.');
