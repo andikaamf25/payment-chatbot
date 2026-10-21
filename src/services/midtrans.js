@@ -1,7 +1,8 @@
 const midtransClient = require('midtrans-client');
 const crypto = require('crypto');
-const config = require('./config');
+const config = require('../config');
 
+// Snap untuk link bayar, Core API untuk QRIS.
 const snap = new midtransClient.Snap({
   isProduction: config.midtrans.isProduction,
   serverKey: config.midtrans.serverKey,
@@ -14,9 +15,7 @@ const coreApi = new midtransClient.CoreApi({
   clientKey: config.midtrans.clientKey,
 });
 
-/**
- * Membuat transaksi Snap dan mengembalikan link pembayaran.
- */
+// Buat link pembayaran Snap.
 async function createPaymentLink({ orderId, amount, customerName }) {
   const parameter = {
     transaction_details: {
@@ -26,7 +25,7 @@ async function createPaymentLink({ orderId, amount, customerName }) {
     customer_details: {
       first_name: customerName || 'Pelanggan',
     },
-    // Batas waktu bayar 24 jam, sesuaikan kalau perlu
+    // Link berlaku 24 jam.
     expiry: {
       unit: 'hours',
       duration: 24,
@@ -37,11 +36,7 @@ async function createPaymentLink({ orderId, amount, customerName }) {
   return transaction.redirect_url;
 }
 
-/**
- * Membuat transaksi QRIS langsung (Core API), mengembalikan URL gambar QR code.
- * Beda dengan createPaymentLink (Snap) yang membuka halaman berisi semua metode,
- * ini fokus khusus QRIS supaya bisa langsung ditampilkan sebagai gambar di chat.
- */
+// Buat transaksi QRIS dan ambil URL kode QR.
 async function createQrisPayment({ orderId, amount, customerName }) {
   const parameter = {
     payment_type: 'qris',
@@ -67,9 +62,6 @@ async function createQrisPayment({ orderId, amount, customerName }) {
   };
 }
 
-/**
- * Verifikasi signature notifikasi dari Midtrans supaya tidak dipalsukan orang lain.
- */
 function isValidSignature({ order_id, status_code, gross_amount, signature_key }) {
   const expected = crypto
     .createHash('sha512')
@@ -78,9 +70,6 @@ function isValidSignature({ order_id, status_code, gross_amount, signature_key }
   return expected === signature_key;
 }
 
-/**
- * Menerjemahkan status transaksi Midtrans jadi status internal yang lebih simpel.
- */
 function mapTransactionStatus(transactionStatus, fraudStatus) {
   if (transactionStatus === 'capture') {
     return fraudStatus === 'accept' ? 'success' : 'pending';

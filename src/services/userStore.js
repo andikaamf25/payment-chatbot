@@ -1,9 +1,10 @@
 const fs = require('fs');
 const path = require('path');
 
-const filePath = path.join(__dirname, '..', 'data', 'users.json');
+const filePath = path.join(__dirname, '..', '..', 'data', 'users.json');
 const defaultData = { users: {}, roles: { owner: [], admin: [] } };
 
+// Siapkan file data.
 function ensureDataFile() {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   if (!fs.existsSync(filePath)) fs.writeFileSync(filePath, JSON.stringify(defaultData, null, 2));
@@ -24,24 +25,25 @@ function writeData(data) {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
 }
 
+// Data pengguna.
 function normalizeId(value) {
   return String(value || '').trim().replace(/^\+/, '');
 }
 
-function registerUser({ id, channel, name }) {
+function registerUser({ id, name }) {
   const userId = normalizeId(id);
   if (!userId) return;
   const data = readData();
   const existing = data.users[userId] || { id: userId, firstSeenAt: new Date().toISOString() };
   data.users[userId] = {
     ...existing,
-    channel: channel || existing.channel,
     name: name || existing.name || 'Pelanggan',
     lastSeenAt: new Date().toISOString(),
   };
   writeData(data);
 }
 
+// Role dan izin.
 function getRole(id) {
   const userId = normalizeId(id);
   const data = readData();
@@ -74,6 +76,7 @@ function removeRole(id, role) {
   return true;
 }
 
+// Ringkasan role.
 function getStats() {
   const data = readData();
   return {
@@ -89,8 +92,8 @@ function getRoles() {
 
 function getRoleRecipients(role) {
   return getRoles()[role]
-    .filter((target) => !target.startsWith('wa:'))
-    .map((target) => target.replace(/^tg:/, ''));
+    .map((target) => target.replace(/^tg:/, ''))
+    .filter((target) => /^-?\d+$/.test(target));
 }
 
 function bootstrapRoles({ ownerIds = [], adminIds = [] }) {

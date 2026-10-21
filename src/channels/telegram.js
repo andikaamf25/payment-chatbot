@@ -1,7 +1,9 @@
 const { Telegraf, Markup } = require('telegraf');
-const config = require('./config');
-const { createPaymentLink, createQrisPayment } = require('./midtrans');
-const { createOrder, getOrder } = require('./orderStore');
+const config = require('../config');
+const { createPaymentLink, createQrisPayment } = require('../services/midtrans');
+const { createOrder, getOrder } = require('../services/orderStore');
+const { notifyOrderCreated } = require('../services/notifier');
+const { MENU, FLAVORS, MIN_ADDRESS_LENGTH, MAX_ADDRESS_LENGTH } = require('../services/catalog');
 const {
   registerUser,
   hasRole,
@@ -9,48 +11,35 @@ const {
   removeRole,
   getStats,
   getRoles,
-  getRoleRecipients,
   bootstrapRoles,
-} = require('./userStore');
+} = require('../services/userStore');
 
+// Siapkan bot.
 if (!config.telegramToken) {
   throw new Error('TELEGRAM_BOT_TOKEN wajib diisi untuk menjalankan versi Telegram.');
 }
 
 const bot = new Telegraf(config.telegramToken);
 const telegramSessions = new Map();
+bot.telegram.setMyCommands([
+  { command: 'start', description: 'Mulai dan lihat menu' },
+  { command: 'stop', description: 'Hentikan proses pemesanan' },
+]).catch((err) => {
+  console.error('Gagal mengatur menu perintah Telegram:', err.message);
+});
+
 bootstrapRoles({
   ownerIds: config.ownerIds,
   adminIds: [...config.adminIds, ...(config.adminChatId ? [`tg:${config.adminChatId}`] : [])],
 });
 
+// Catat pengguna.
 bot.use((ctx, next) => {
-  if (ctx.from) registerUser({ id: ctx.from.id, channel: 'telegram', name: ctx.from.first_name });
+  if (ctx.from) registerUser({ id: ctx.from.id, name: ctx.from.first_name });
   return next();
 });
 
-const MENU = {
-  offline: {
-    label: 'Offline',
-    sizes: [
-      { id: 'small', label: 'Small', amount: 5000 },
-      { id: 'medium', label: 'Medium', amount: 10000 },
-      { id: 'large', label: 'Large', amount: 15000 },
-    ],
-  },
-  online: {
-    label: 'Online',
-    sizes: [{ id: 'online', label: 'Satu ukuran', amount: 15000 }],
-  },
-};
-
-const FLAVORS = [
-  { id: 'original', label: 'Original' },
-  { id: 'pedas', label: 'Pedas' },
-  { id: 'manis', label: 'Manis' },
-  { id: 'pedas-manis', label: 'Pedas & Manis' },
-];
-
+// Tampilan dan keranjang.
 function formatRupiah(amount) {
   return `Rp${amount.toLocaleString('id-ID')}`;
 }
@@ -103,34 +92,19 @@ function cartText(items) {
   return ` <b>Isi pesanan</b>\n━━━━━━━━━━━━━━━\n${lines.join('\n')}\n━━━━━━━━━━━━━━━\n Total: <b>${formatRupiah(cartTotal(items))}</b>`;
 }
 
-async function notifyTelegramStaff(order) {
-  const targets = [...new Set([
-    ...getRoleRecipients('owner'),
-    ...getRoleRecipients('admin'),
-  ])];
-  const message =
-    ` <b>Pesanan baru masuk</b>\n` +
-    `━━━━━━━━━━━━━━━\n` +
-    ` ID: <code>${order.orderId}</code>\n` +
-    ` Produk: <b>${escapeHtml(order.productName)}</b>\n` +
-    ` Total: <b>${formatRupiah(order.amount)}</b>\n` +
-    ` Alamat: <b>${escapeHtml(order.address || 'Belum diisi')}</b>\n` +
-    ` Pembeli: ${escapeHtml(order.customerName || 'Pelanggan')}\n` +
-    ` Status antar: <b>${order.deliveryStatus}</b>`;
-
-  await Promise.all(targets.map(async (target) => {
-    try {
-      await bot.telegram.sendMessage(target, message, { parse_mode: 'HTML' });
-    } catch (err) {
-      console.error(`Gagal meneruskan order ke Telegram ${target}:`, err.message);
-    }
-  }));
+function isValidAddress(address) {
+  return address.length >= MIN_ADDRESS_LENGTH && address.length <= MAX_ADDRESS_LENGTH;
 }
 
+function createOrderId(telegramId) {
+  return `ORDER-${Date.now()}-${telegramId}`;
+}
+
+// Pesanan dan notifikasi.
 async function sendPaymentOptions(ctx, { items, address }) {
   const amount = cartTotal(items);
   const hasOnline = items.some((item) => item.mode === 'online');
-  const orderId = `ORDER-${Date.now()}-${ctx.from.id}`;
+  const orderId = createOrderId(ctx.from.id);
   const productName = cartProductName(items);
 
   createOrder(orderId, {
@@ -143,7 +117,7 @@ async function sendPaymentOptions(ctx, { items, address }) {
     address,
     deliveryStatus: hasOnline ? 'menunggu_pembayaran' : 'diproses',
   });
-  await notifyTelegramStaff({
+  await notifyOrderCreated(bot, {
     orderId,
     productName,
     amount,
@@ -172,6 +146,7 @@ async function sendPaymentOptions(ctx, { items, address }) {
   );
 }
 
+// Alur pemesanan.
 bot.start((ctx) => {
   telegramSessions.delete(ctx.chat.id);
   ctx.replyWithHTML(
@@ -180,6 +155,11 @@ bot.start((ctx) => {
       ` <b>Pilih menu untuk mulai memesan:</b>`,
     menuKeyboard()
   );
+});
+
+bot.command('stop', (ctx) => {
+  telegramSessions.delete(ctx.chat.id);
+  return ctx.reply('Proses pemesanan dihentikan. Ketik /start untuk mulai lagi.');
 });
 
 bot.command('menu', (ctx) => {
@@ -198,7 +178,7 @@ bot.action('add', async (ctx) => {
   if (!session?.cart?.length) return ctx.reply(' Keranjang kosong. Silakan mulai dari /start.');
   session.step = 'mode';
   await ctx.answerCbQuery();
-  return ctx.replyWithHTML('➕ <b>Tambah pesanan</b>\n\nPilih jenis menu:', menuKeyboard());
+  return ctx.replyWithHTML(' <b>Tambah pesanan</b>\n\nPilih jenis menu:', menuKeyboard());
 });
 
 bot.action('checkout', async (ctx) => {
@@ -252,12 +232,13 @@ bot.action(/^flavor\|(offline|online)\|([a-z]+)\|([a-z-]+)$/, async (ctx) => {
   return ctx.replyWithHTML(
     `${cartText(session.cart)}\n\nPilih aksi berikutnya:`,
     Markup.inlineKeyboard([
-      [Markup.button.callback('➕ Tambah pesanan', 'add')],
+      [Markup.button.callback(' Tambah pesanan', 'add')],
       [Markup.button.callback(' Checkout semua', 'checkout')],
     ])
   );
 });
 
+// Perintah Telegram dan role.
 bot.help((ctx) => {
   ctx.replyWithHTML(
     `🛠 <b>Perintah yang tersedia</b>\n\n` +
@@ -267,6 +248,7 @@ bot.help((ctx) => {
   );
 });
 
+// Perintah khusus owner.
 bot.command('addadmin', (ctx) => manageRoleCommand(ctx, 'admin', addRole));
 bot.command('addowner', (ctx) => manageRoleCommand(ctx, 'owner', addRole));
 bot.command('deladmin', (ctx) => manageRoleCommand(ctx, 'admin', removeRole));
@@ -286,13 +268,13 @@ function manageRoleCommand(ctx, role, action) {
   if (!hasRole(ctx.from.id, 'owner')) return ctx.reply('⛔ Hanya owner yang boleh mengatur role.');
   const target = ctx.message.text.trim().split(/\s+/)[1];
   if (!target) return ctx.reply(`Format: /${action === addRole ? 'add' : 'del'}${role} tg:<telegram_id>`);
-  action(target.startsWith('tg:') ? target : `tg:${target}`, role);
+  action(/^tg:/.test(target) ? target : `tg:${target}`, role);
   return ctx.reply(` Role ${role} berhasil diperbarui untuk ${target}.`);
 }
 
+// Pesanan manual.
 bot.command('pesan', async (ctx) => {
   try {
-    // ctx.message.text contoh: "/pesan KaosPolos 75000"
     const parts = ctx.message.text.trim().split(/\s+/);
     const harga = parseInt(parts[parts.length - 1], 10);
     const namaProduk = parts.slice(1, parts.length - 1).join(' ');
@@ -313,7 +295,7 @@ bot.command('pesan', async (ctx) => {
   }
 });
 
-// Tombol "Bayar via QRIS" ditekan -> generate & kirim gambar QR langsung di chat
+// Pembayaran QRIS.
 bot.action(/^qris\|(.+)$/, async (ctx) => {
   const orderId = ctx.match[1];
   await ctx.answerCbQuery('Membuat QRIS...');
@@ -346,7 +328,7 @@ bot.action(/^qris\|(.+)$/, async (ctx) => {
   }
 });
 
-// Tombol "Transfer / E-wallet / Kartu" ditekan -> generate link Snap (semua metode selain QRIS)
+// Link pembayaran Snap.
 bot.action(/^snap\|(.+)$/, async (ctx) => {
   const orderId = ctx.match[1];
   await ctx.answerCbQuery('Membuat link pembayaran...');
@@ -375,15 +357,15 @@ bot.action(/^snap\|(.+)$/, async (ctx) => {
   }
 });
 
-// Fallback untuk pesan teks biasa (bukan command)
+// Tangani alamat dan pesan teks.
 bot.on('text', async (ctx) => {
   const session = telegramSessions.get(ctx.chat.id);
   if (session?.step === 'manual-address') {
     const address = ctx.message.text.trim();
-    if (address.length < 5 || address.length > 500) {
-      return ctx.reply(' Alamat harus diisi antara 5 sampai 500 karakter. Coba kirim lagi.');
+    if (!isValidAddress(address)) {
+      return ctx.reply(` Alamat harus diisi antara ${MIN_ADDRESS_LENGTH} sampai ${MAX_ADDRESS_LENGTH} karakter. Coba kirim lagi.`);
     }
-    const orderId = `ORDER-${Date.now()}-${ctx.from.id}`;
+    const orderId = createOrderId(ctx.from.id);
     createOrder(orderId, {
       chatId: ctx.chat.id,
       productName: session.productName,
@@ -392,7 +374,7 @@ bot.on('text', async (ctx) => {
       address,
       deliveryStatus: 'diproses',
     });
-    await notifyTelegramStaff({
+    await notifyOrderCreated(bot, {
       orderId,
       productName: session.productName,
       amount: session.amount,
@@ -420,15 +402,15 @@ bot.on('text', async (ctx) => {
 
   if (session?.step === 'address') {
     const address = ctx.message.text.trim();
-    if (address.length < 5 || address.length > 500) {
-      return ctx.reply(' Alamat harus diisi antara 5 sampai 500 karakter. Coba kirim lagi.');
+    if (!isValidAddress(address)) {
+      return ctx.reply(` Alamat harus diisi antara ${MIN_ADDRESS_LENGTH} sampai ${MAX_ADDRESS_LENGTH} karakter. Coba kirim lagi.`);
     }
     telegramSessions.delete(ctx.chat.id);
     try {
       await sendPaymentOptions(ctx, { items: session.cart, address });
     } catch (err) {
       console.error('Error saat membuat menu:', err);
-      await ctx.reply('❌ Maaf, pesanan belum bisa dibuat. Coba lagi nanti.');
+      await ctx.reply('Maaf, pesanan belum bisa dibuat. Coba lagi nanti.');
     }
     return;
   }
@@ -438,7 +420,7 @@ bot.on('text', async (ctx) => {
   );
 });
 
-// Selalu log error supaya kelihatan di terminal, bukan diam-diam gagal
+// Tampilkan error di terminal.
 bot.catch((err, ctx) => {
   console.error(`Error untuk update ${ctx.updateType}:`, err);
 });
