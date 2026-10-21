@@ -11,6 +11,7 @@ const {
   removeRole,
   getStats,
   getRoles,
+  getRoleRecipients,
   bootstrapRoles,
 } = require('../services/userStore');
 
@@ -23,6 +24,8 @@ const bot = new Telegraf(config.telegramToken);
 const telegramSessions = new Map();
 bot.telegram.setMyCommands([
   { command: 'start', description: 'Mulai dan lihat menu' },
+  { command: 'help', description: 'Panduan dan solusi kendala' },
+  { command: 'bantuan', description: 'Kirim kendala ke admin' },
   { command: 'stop', description: 'Hentikan proses pemesanan' },
 ]).catch((err) => {
   console.error('Gagal mengatur menu perintah Telegram:', err.message);
@@ -66,6 +69,7 @@ function menuKeyboard() {
   return Markup.inlineKeyboard([
     [Markup.button.callback(' Menu Offline', 'mode|offline')],
     [Markup.button.callback(' Menu Online', 'mode|online')],
+    [Markup.button.callback(' Bantuan', 'help')],
   ]);
 }
 
@@ -238,14 +242,48 @@ bot.action(/^flavor\|(offline|online)\|([a-z]+)\|([a-z-]+)$/, async (ctx) => {
   );
 });
 
-// Perintah Telegram dan role.
-bot.help((ctx) => {
-  ctx.replyWithHTML(
-    `🛠 <b>Perintah yang tersedia</b>\n\n` +
-      `• /start — mulai & lihat menu\n` +
-      `• /menu — lihat pilihan menu\n` +
-      `• /pesan &lt;nama_produk&gt; &lt;harga&gt; — buat pesanan &amp; pilih metode bayar`
+// Bantuan pelanggan.
+function sendHelp(ctx) {
+  return ctx.replyWithHTML(
+    `🛠 <b>Pusat Bantuan</b>\n\n` +
+      `• /start atau /menu — mulai atau lihat menu\n` +
+      `• /stop — hentikan proses pemesanan\n` +
+      `• /pesan &lt;nama_produk&gt; &lt;harga&gt; — buat pesanan manual\n\n` +
+      `<b>Jika ada kendala:</b>\n` +
+      `• Alamat tidak diterima: kirim alamat lengkap antara ${MIN_ADDRESS_LENGTH}–${MAX_ADDRESS_LENGTH} karakter.\n` +
+      `• Pembayaran belum terkonfirmasi: tunggu beberapa saat dan jangan melakukan pembayaran ulang sebelum status diperiksa.\n` +
+      `• QRIS atau link pembayaran bermasalah: coba lagi atau pilih metode pembayaran lain.\n\n` +
+      `Belum terbantu? Ketik /bantuan untuk mengirim laporan ke admin. Sertakan ID pesanan jika ada.`,
+    Markup.inlineKeyboard([[Markup.button.callback('Laporkan kendala ke admin', 'support')]])
   );
+}
+
+function startSupport(ctx) {
+  const recipients = [...new Set([
+    ...getRoleRecipients('owner'),
+    ...getRoleRecipients('admin'),
+  ])];
+  if (recipients.length === 0) {
+    return ctx.reply('Bantuan belum dapat diteruskan karena admin belum dikonfigurasi. Silakan coba lagi nanti.');
+  }
+
+  const session = telegramSessions.get(ctx.chat.id) || {};
+  session.supportRequested = true;
+  telegramSessions.set(ctx.chat.id, session);
+  return ctx.reply('Ceritakan kendala yang kamu alami dalam satu pesan. Sertakan ID pesanan jika ada.');
+}
+
+bot.help(sendHelp);
+bot.command('bantuan', (ctx) => startSupport(ctx));
+
+bot.action('help', async (ctx) => {
+  await ctx.answerCbQuery();
+  return sendHelp(ctx);
+});
+
+bot.action('support', async (ctx) => {
+  await ctx.answerCbQuery();
+  return startSupport(ctx);
 });
 
 // Perintah khusus owner.
@@ -360,6 +398,52 @@ bot.action(/^snap\|(.+)$/, async (ctx) => {
 // Tangani alamat dan pesan teks.
 bot.on('text', async (ctx) => {
   const session = telegramSessions.get(ctx.chat.id);
+  if (session?.supportRequested) {
+    const issue = ctx.message.text.trim();
+    if (!issue || issue.length > 3000) {
+      return ctx.reply('Laporan harus berisi 1 sampai 3000 karakter. Silakan kirim ulang kendalanya.');
+    }
+
+    const recipients = [...new Set([
+      ...getRoleRecipients('owner'),
+      ...getRoleRecipients('admin'),
+    ])];
+    if (recipients.length === 0) {
+      return ctx.reply('Laporan belum dapat diteruskan karena admin belum dikonfigurasi. Silakan coba lagi nanti.');
+    }
+
+    const username = ctx.from.username ? `@${ctx.from.username}` : '-';
+    const message =
+      `Laporan kendala pelanggan\n` +
+      `Nama: ${ctx.from.first_name || 'Pelanggan'}\n` +
+      `Username: ${username}\n` +
+      `Telegram ID: ${ctx.from.id}\n` +
+      `Chat ID: ${ctx.chat.id}\n\n` +
+      issue;
+    const deliveries = await Promise.all(recipients.map(async (recipient) => {
+      try {
+        await bot.telegram.sendMessage(recipient, message);
+        return true;
+      } catch (err) {
+        console.error(`Gagal meneruskan laporan bantuan ke Telegram ${recipient}:`, err.message);
+        return false;
+      }
+    }));
+    const delivered = deliveries.filter(Boolean).length;
+
+    if (delivered === 0) {
+      return ctx.reply('Laporan gagal dikirim ke admin. Silakan coba lagi dengan /bantuan.');
+    }
+
+    delete session.supportRequested;
+    if (Object.keys(session).length === 0) telegramSessions.delete(ctx.chat.id);
+    return ctx.reply(
+      delivered === recipients.length
+        ? 'Laporan sudah dikirim ke admin. Mereka akan menindaklanjuti kendalamu.'
+        : 'Laporan terkirim ke sebagian admin, tetapi ada kendala saat menghubungi admin lain. Admin yang menerima akan menindaklanjuti.'
+    );
+  }
+
   if (session?.step === 'manual-address') {
     const address = ctx.message.text.trim();
     if (!isValidAddress(address)) {
@@ -416,7 +500,7 @@ bot.on('text', async (ctx) => {
   }
 
   ctx.replyWithHTML(
-    'Perintah tidak dikenali.\n\nKetik /start atau /menu untuk melihat pilihan menu.'
+    'Perintah tidak dikenali.\n\nKetik /help untuk panduan, /bantuan untuk melaporkan kendala, atau /start untuk melihat menu.'
   );
 });
 
