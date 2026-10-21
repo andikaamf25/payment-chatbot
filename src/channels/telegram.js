@@ -440,7 +440,7 @@ bot.on('text', async (ctx) => {
     return ctx.reply(
       delivered === recipients.length
         ? 'Laporan sudah dikirim ke admin. Mereka akan menindaklanjuti kendalamu.'
-        : 'Laporan terkirim ke sebagian admin, tetapi ada kendala saat menghubungi admin lain. Admin yang menerima akan menindaklanjuti.'
+        : 'Laporan terkirim ke sebagian admin, tetapi ada kendala saat menghubungi admin lain. Admin yang menerima akan menindak lanjuti.'
     );
   }
 
