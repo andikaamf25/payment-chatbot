@@ -1,8 +1,11 @@
 require('dotenv').config();
 
 // Konfigurasi wajib.
-const required = ['TELEGRAM_BOT_TOKEN', 'MIDTRANS_SERVER_KEY', 'MIDTRANS_CLIENT_KEY'];
+const required = ['MIDTRANS_SERVER_KEY', 'MIDTRANS_CLIENT_KEY'];
 const missing = required.filter((key) => !process.env[key]);
+if (!process.env.TELEGRAM_BOT_TOKEN && process.env.WHATSAPP_ENABLED !== 'true') {
+  missing.push('TELEGRAM_BOT_TOKEN atau WHATSAPP_ENABLED=true');
+}
 
 // Baca daftar ID dari .env.
 function parseIds(value) {
@@ -21,7 +24,9 @@ if (missing.length > 0) {
 module.exports = {
   // Server dan bot.
   port: process.env.PORT || 3000,
-  telegramToken: process.env.TELEGRAM_BOT_TOKEN,
+  telegramToken: process.env.TELEGRAM_BOT_TOKEN || null,
+  whatsappEnabled: process.env.WHATSAPP_ENABLED === 'true',
+  whatsappAuthPath: process.env.WHATSAPP_AUTH_PATH || '.whatsapp_auth',
 
   // Pembayaran.
   midtrans: {
@@ -36,4 +41,5 @@ module.exports = {
   // ID owner dan admin.
   ownerIds: parseIds(process.env.OWNER_IDS),
   adminIds: parseIds(process.env.ADMIN_IDS),
+  whatsappAdminIds: parseIds(process.env.WHATSAPP_ADMIN_IDS),
 };

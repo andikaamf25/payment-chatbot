@@ -1,13 +1,13 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const config = require('./config');
-const bot = require('./channels/telegram');
 const { isValidSignature, mapTransactionStatus } = require('./services/midtrans');
 const { formatReceipt } = require('./services/receipt');
 const {
-  sendTelegramMessage,
+  setChannels,
+  sendChannelMessage,
   notifyBuyer,
-  notifyTelegramAdmin,
+  notifyPaymentSuccessAdmins,
 } = require('./services/notifier');
 const {
   getOrder,
@@ -16,6 +16,10 @@ const {
   claimReceipt,
   finishReceipt,
 } = require('./services/orderStore');
+
+const channels = {};
+let whatsappClient;
+let telegramBot;
 
 // Webhook Midtrans.
 const app = express();
@@ -55,13 +59,13 @@ app.post('/midtrans/notification', async (req, res) => {
     unknown: `Status pesanan ${order_id} berubah: ${transaction_status}\n Alamat: ${order.address || 'Belum diisi'}`,
   }[status];
 
-  await notifyBuyer(bot, order, pesanUntukPembeli);
+  await notifyBuyer(channels, order, pesanUntukPembeli);
 
   if (status === 'success' && claimReceipt(order_id)) {
     let receiptSent = false;
     try {
-      await sendTelegramMessage(
-        bot,
+      await sendChannelMessage(
+        order.channel || 'telegram',
         order.chatId,
         formatReceipt(order)
       );
@@ -74,8 +78,8 @@ app.post('/midtrans/notification', async (req, res) => {
   }
 
   // Beri tahu admin jika pembayaran berhasil.
-  if (config.adminChatId && status === 'success') {
-    await notifyTelegramAdmin(bot, config.adminChatId, order);
+  if (status === 'success') {
+    await notifyPaymentSuccessAdmins(order);
   }
 
   res.status(200).json({ message: 'OK' });
@@ -83,19 +87,42 @@ app.post('/midtrans/notification', async (req, res) => {
 
 app.get('/', (_req, res) => res.send('Payment chatbot server is running.'));
 
-// Jalankan server dan bot.
-app.listen(config.port, () => {
-  console.log(` Server webhook Midtrans jalan di port ${config.port}`);
-});
+async function start() {
+  if (config.telegramToken) {
+    telegramBot = require('./channels/telegram');
+    channels.telegram = telegramBot;
+  }
+  if (config.whatsappEnabled) {
+    const { startWhatsApp } = require('./channels/whatsapp');
+    whatsappClient = await startWhatsApp();
+    channels.whatsapp = whatsappClient;
+  }
+  setChannels(channels);
 
-bot
-  .launch()
-  .then(() => console.log(' Bot Telegram jalan dan siap menerima pesan (polling mode).'))
-  .catch((err) => {
-    console.error('Gagal menjalankan bot Telegram:', err.message);
-    process.exit(1);
+  app.listen(config.port, () => {
+    console.log(` Server webhook Midtrans jalan di port ${config.port}`);
   });
 
-// Hentikan bot saat proses ditutup.
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+  if (telegramBot) {
+    telegramBot
+      .launch()
+      .then(() => console.log(' Bot Telegram jalan dan siap menerima pesan (polling mode).'))
+      .catch((err) => {
+        console.error('Gagal menjalankan bot Telegram:', err.message);
+        process.exit(1);
+      });
+  }
+}
+
+start().catch((err) => {
+  console.error('Gagal menjalankan chatbot:', err);
+  process.exit(1);
+});
+
+function stop(signal) {
+  if (telegramBot) telegramBot.stop(signal);
+  if (whatsappClient) whatsappClient.stop();
+}
+
+process.once('SIGINT', () => stop('SIGINT'));
+process.once('SIGTERM', () => stop('SIGTERM'));

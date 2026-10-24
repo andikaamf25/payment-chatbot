@@ -33,7 +33,11 @@ bot.telegram.setMyCommands([
 
 bootstrapRoles({
   ownerIds: config.ownerIds,
-  adminIds: [...config.adminIds, ...(config.adminChatId ? [`tg:${config.adminChatId}`] : [])],
+  adminIds: [
+    ...config.adminIds,
+    ...(config.adminChatId ? [`tg:${config.adminChatId}`] : []),
+    ...config.whatsappAdminIds.map((id) => `wa:${id}`),
+  ],
 });
 
 // Catat pengguna.
@@ -113,6 +117,7 @@ async function sendPaymentOptions(ctx, { items, address }) {
 
   createOrder(orderId, {
     chatId: ctx.chat.id,
+    channel: 'telegram',
     productName,
     amount,
     customerName: ctx.from.first_name,
@@ -121,7 +126,7 @@ async function sendPaymentOptions(ctx, { items, address }) {
     address,
     deliveryStatus: hasOnline ? 'menunggu_pembayaran' : 'diproses',
   });
-  await notifyOrderCreated(bot, {
+  await notifyOrderCreated({
     orderId,
     productName,
     amount,
@@ -452,13 +457,14 @@ bot.on('text', async (ctx) => {
     const orderId = createOrderId(ctx.from.id);
     createOrder(orderId, {
       chatId: ctx.chat.id,
+      channel: 'telegram',
       productName: session.productName,
       amount: session.amount,
       customerName: ctx.from.first_name,
       address,
       deliveryStatus: 'diproses',
     });
-    await notifyOrderCreated(bot, {
+    await notifyOrderCreated({
       orderId,
       productName: session.productName,
       amount: session.amount,

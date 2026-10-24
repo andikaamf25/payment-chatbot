@@ -96,6 +96,20 @@ function getRoleRecipients(role) {
     .filter((target) => /^-?\d+$/.test(target));
 }
 
+function getRoleRecipientEntries(role) {
+  return getRoles()[role]
+    .map((target) => {
+      const match = /^(tg|wa):(.+)$/.exec(target);
+      if (match) {
+        return { channel: match[1] === 'wa' ? 'whatsapp' : 'telegram', recipient: match[2] };
+      }
+      return /^-?\d+$/.test(target)
+        ? { channel: 'telegram', recipient: target }
+        : null;
+    })
+    .filter(Boolean);
+}
+
 function bootstrapRoles({ ownerIds = [], adminIds = [] }) {
   ownerIds.forEach((id) => addRole(id, 'owner'));
   adminIds.forEach((id) => {
@@ -103,4 +117,16 @@ function bootstrapRoles({ ownerIds = [], adminIds = [] }) {
   });
 }
 
-module.exports = { registerUser, getRole, hasRole, addRole, removeRole, getStats, getRoles, getRoleRecipients, bootstrapRoles, normalizeId };
+module.exports = {
+  registerUser,
+  getRole,
+  hasRole,
+  addRole,
+  removeRole,
+  getStats,
+  getRoles,
+  getRoleRecipients,
+  getRoleRecipientEntries,
+  bootstrapRoles,
+  normalizeId,
+};
