@@ -100,7 +100,7 @@ async function handleMessage(message) {
 
   await sendMessage(
     jid,
-    `👋 Halo! Selamat datang di bot kami.
+    `👋 Halo! Selamat datang di Gurih Gacor.
 
 Daftar Perintah:
 
@@ -109,9 +109,8 @@ Daftar Perintah:
 
 Cara Menggunakan:
 
-1. Ketik perintah.
-2. Kirim pesan.
-3. Ikuti petunjuk dari bot.
+1. Ketik perintah /menu atau /help.
+2. Lalu kirim pesan.
 
 ❓ Bingung? Ketik help.
 🛍️ Mau mulai? Ketik menu.
