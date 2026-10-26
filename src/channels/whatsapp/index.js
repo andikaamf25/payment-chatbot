@@ -98,7 +98,26 @@ async function handleMessage(message) {
   });
   if (menuHandled) return;
 
-  await sendMessage(jid, 'Perintah tidak dikenali. Ketik menu untuk memesan atau bantuan untuk panduan.');
+  await sendMessage(
+    jid,
+    `👋 Halo! Selamat datang di bot kami.
+
+Daftar Perintah:
+
+/help — Melihat panduan bot.
+/menu — Melihat daftar produk dan layanan.
+
+Cara Menggunakan:
+
+1. Ketik perintah.
+2. Kirim pesan.
+3. Ikuti petunjuk dari bot.
+
+❓ Bingung? Ketik help.
+🛍️ Mau mulai? Ketik menu.
+
+Terima kasih dan selamat berbelanja!`,
+  );
 }
 
 async function startWhatsApp() {
@@ -122,8 +141,8 @@ async function startWhatsApp() {
       if (update.connection === 'open') {
         console.log(
           qrWasShown
-            ? '✅ QR berhasil dipindai! WhatsApp terhubung dan chatbot siap menerima pesan.'
-            : '✅ WhatsApp terhubung dan chatbot siap menerima pesan.'
+            ? ' QR berhasil dipindai! WhatsApp terhubung dan chatbot siap menerima pesan.'
+            : ' WhatsApp terhubung dan chatbot siap menerima pesan.'
         );
       }
       if (update.connection === 'close' && !stopping) {
