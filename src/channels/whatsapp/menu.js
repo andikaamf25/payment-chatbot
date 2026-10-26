@@ -16,7 +16,7 @@ async function showMainMenu({ jid, name, sessions, sendMessage }) {
     `Selamat datang di Gurih Gacor${name ? `, ${name}` : ''}!\n\n` +
       `Pilih menu untuk mulai memesan:\n1. Menu Offline\n2. Menu Online\n\n` +
       `Ketik angka pilihan. Ketik bantuan untuk panduan.`
-      `Jangan Lupa mampur ke Instagram kami @gurihgacor.id untuk melihat menu terbaru dan promo menarik!`
+      `Jangan Lupa mampur ke Instagram kami @gurih.gacor untuk melihat menu terbaru dan promo menarik!`
   );
 }
 
